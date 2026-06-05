@@ -28,7 +28,7 @@ const PasswordField = ({ label, value, onChange, placeholder, show, onToggle }) 
           border-gray-200 dark:border-gray-600
           text-gray-800 dark:text-gray-100
           placeholder-gray-400 dark:placeholder-gray-500
-          focus:border-[#007B8B] focus:ring-2 focus:ring-[#007B8B]/15"
+          focus:border-[var(--admin-accent)] focus:ring-2 focus:ring-[var(--admin-accent)]/15"
       />
       <button
         type="button"
@@ -89,7 +89,7 @@ const ChangePassword = () => {
         <div className="flex items-center gap-3 mb-6">
           <div
             className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-            style={{ background: 'linear-gradient(135deg,#007B8B,#014F5A)' }}
+            style={{ background: 'linear-gradient(135deg,var(--admin-accent),var(--admin-accent-dark))' }}
           >
             <svg viewBox="0 0 24 24" className="w-5 h-5 fill-white">
               <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z" />
@@ -138,11 +138,11 @@ const ChangePassword = () => {
                       style={{
                         background:
                           form.next.length >= i * 3
-                            ? i <= 1 ? '#ef4444'
-                            : i <= 2 ? '#f59e0b'
-                            : i <= 3 ? '#007B8B'
-                            : '#22c55e'
-                            : '#e5e7eb',
+                            ? i <= 1 ? 'var(--danger)'
+                            : i <= 2 ? 'var(--warning)'
+                            : i <= 3 ? 'var(--admin-accent)'
+                            : 'var(--success)'
+                            : 'var(--admin-border)',
                       }}
                     />
                   ))}
@@ -179,7 +179,7 @@ const ChangePassword = () => {
             type="submit"
             disabled={loading}
             className="w-full py-3.5 rounded-2xl font-black text-sm tracking-widest uppercase text-white transition-all active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed mt-2"
-            style={{ background: 'linear-gradient(135deg,#007B8B,#014F5A)', boxShadow: '0 4px 14px rgba(0,123,139,0.3)' }}
+            style={{ background: 'linear-gradient(135deg,var(--admin-accent),var(--admin-accent-dark))', boxShadow: '0 4px 14px rgba(0,123,139,0.3)' }}
           >
             {loading ? (
               <span className="flex items-center justify-center gap-2">

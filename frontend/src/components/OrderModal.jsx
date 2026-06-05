@@ -2,10 +2,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useCart } from '../context/CartContext';
 import api from '../api/axios';
 import toast from 'react-hot-toast';
+import { saveMyOrder } from '../utils/myOrders';
+import { cafeConfig } from '../config/cafeConfig';
 
 // ── UPI config from env vars ──────────────────────────────────────────────────
-const CAFE_UPI_ID = import.meta.env.VITE_CAFE_UPI_ID || '9696028522@ybl';
-const CAFE_UPI_NAME = import.meta.env.VITE_CAFE_UPI_NAME || 'Diesel Cafe';
+const CAFE_UPI_ID = cafeConfig.contact.upiId;
+const CAFE_UPI_NAME = cafeConfig.contact.upiName;
 
 const buildUpiLink = (amount) =>
   `upi://pay?pa=${CAFE_UPI_ID}&pn=${encodeURIComponent(CAFE_UPI_NAME)}&am=${amount}&cu=INR&tn=${encodeURIComponent('Takeaway Order')}`;
@@ -67,10 +69,26 @@ const OrderModal = ({ isOpen, onClose, tableFromQR }) => {
   // ── NEW: payment method state ─────────────────────────────────────────────
   const [paymentMethod, setPaymentMethod] = useState('upi'); // 'upi' | 'debit-card' | 'credit-card'
 
+  // ── Operational settings from backend ────────────────────────────────────
+  const [isTakeawayEnabled, setIsTakeawayEnabled] = useState(true);
+  const [isAutoPayEnabled, setIsAutoPayEnabled] = useState(false);
+
   const pollRef = useRef(null);
   const prevStatusRef = useRef('pending');
 
   useEffect(() => { if (tableFromQR) setTable(tableFromQR); }, [tableFromQR]);
+
+  // ── Fetch operational settings on mount ───────────────────────────────────
+  useEffect(() => {
+    api.get('/auth/settings')
+      .then(res => {
+        setIsTakeawayEnabled(res.data.isTakeawayEnabled ?? true);
+        setIsAutoPayEnabled(res.data.isAutoPayEnabled ?? false);
+        // If takeaway just got disabled and user had it selected, switch to dine-in
+        if (!res.data.isTakeawayEnabled) setOrderType('dine-in');
+      })
+      .catch(() => { }); // fail silently — defaults stay
+  }, []);
 
   useEffect(() => {
     if (orderType === 'takeaway') setTable('Takeaway');
@@ -148,6 +166,18 @@ const OrderModal = ({ isOpen, onClose, tableFromQR }) => {
         setSavedOrderType('dine-in');
         setOrderId(res.data._id);
         setStep('success');
+        // ── Save to My Orders (localStorage) before cart is cleared ──────
+        saveMyOrder({
+          orderId: res.data._id,
+          customerName: name.trim(),
+          tableNumber: table.trim(),
+          orderType: 'dine-in',
+          items: items.map((i) => ({ name: i.name, quantity: i.quantity, price: i.price, veg: i.veg })),
+          totalAmount,
+          pickupToken: '',
+          placedAt: new Date().toISOString(),
+          note: note.trim(),
+        });
         clearCart();
         toast.success('Order placed! Kitchen notified.', { icon: '🛎️', duration: 4000 });
       } catch (err) {
@@ -185,6 +215,18 @@ const OrderModal = ({ isOpen, onClose, tableFromQR }) => {
       setPaymentStatus(res.data.paymentStatus);
       setOrderId(res.data._id);
       setStep('success');
+      // ── Save to My Orders (localStorage) before cart is cleared ────────
+      saveMyOrder({
+        orderId: res.data._id,
+        customerName: name.trim(),
+        tableNumber: 'Takeaway',
+        orderType: 'takeaway',
+        items: items.map((i) => ({ name: i.name, quantity: i.quantity, price: i.price, veg: i.veg })),
+        totalAmount,
+        pickupToken: res.data.pickupToken || '',
+        placedAt: new Date().toISOString(),
+        note: note.trim(),
+      });
       clearCart();
       toast.success(`Order placed! Pickup: ${res.data.pickupToken}`, { icon: '🛍️', duration: 5000 });
     } catch (err) {
@@ -192,12 +234,76 @@ const OrderModal = ({ isOpen, onClose, tableFromQR }) => {
     } finally { setSubmitLoading(false); }
   };
 
+  // ── Step 2 (Auto): Razorpay payment handler ───────────────────────────────
+  const handleRazorpayPayment = async () => {
+    setLoading(true);
+    try {
+      const orderRes = await api.post('/payments/create-order', { amount: totalAmount });
+      const { id: order_id, currency, amount } = orderRes.data;
+      const options = {
+        key: import.meta.env.VITE_RAZORPAY_KEY_ID,
+        amount,
+        currency,
+        name: cafeConfig.name,
+        description: 'Takeaway Order',
+        order_id,
+        handler: async (response) => {
+          try {
+            const verifyRes = await api.post('/payments/verify', {
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+              orderData: {
+                customerName: name.trim(),
+                phoneNumber: phone.trim(),
+                note: note.trim(),
+                items: items.map((i) => ({ menuItem: i._id, name: i.name, price: i.price, quantity: i.quantity, veg: i.veg })),
+              },
+            });
+            const newOrderId = verifyRes.data.order._id;
+            setSavedTotal(totalAmount);
+            setSavedOrderType('takeaway');
+            setPickupToken(verifyRes.data.pickupToken);
+            setPaymentStatus('paid');
+            setOrderId(newOrderId);
+            saveMyOrder({
+              orderId: newOrderId,
+              customerName: name.trim(),
+              tableNumber: 'Takeaway',
+              orderType: 'takeaway',
+              items: items.map((i) => ({ name: i.name, quantity: i.quantity, price: i.price, veg: i.veg })),
+              totalAmount,
+              pickupToken: verifyRes.data.pickupToken || '',
+              placedAt: new Date().toISOString(),
+              note: note.trim(),
+            });
+            clearCart();
+            setStep('success');
+            toast.success(`Order placed! Pickup: ${verifyRes.data.pickupToken}`, { icon: '🛍️', duration: 5000 });
+          } catch (err) {
+            setError(err.response?.data?.message || 'Payment verified but order failed. Contact staff.');
+          }
+        },
+        prefill: { name: name.trim(), contact: `+91${phone.trim()}` },
+        theme: { color: '#940901' },
+      };
+      const rzp = new window.Razorpay(options);
+      rzp.on('payment.failed', () => setError('Payment failed. Please try again.'));
+      rzp.open();
+    } catch (err) {
+      console.error('Razorpay error:', err.response?.data || err.message);
+      setError(err.response?.data?.message || 'Could not initiate payment. Try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // ─────────────────────────────────────────────────────────────────────────
   const isTakeaway = orderType === 'takeaway';
 
   const statusConfig = {
     pending: {
-      label: 'Order Received', icon: '⏳', color: '#ffeb5e', bg: '#fef3c7',
+      label: 'Order Received', icon: '⏳', color: '#786c16', bg: '#fef3c7',
       desc: isTakeaway ? 'Admin will verify your payment shortly.' : 'Waiting for kitchen confirmation…'
     },
     accepted: { label: 'Order Accepted!', icon: '✅', color: '#0f742fd0', bg: '#d1fae5', desc: 'Your order is confirmed and being prepared.' },
@@ -207,7 +313,7 @@ const OrderModal = ({ isOpen, onClose, tableFromQR }) => {
       icon: '🎉', color: '#0d571f', bg: '#ecfdf5',
       desc: isTakeaway ? '🛍️ Show your pickup token at the counter!' : "Your food is ready! We'll bring it to your table."
     },
-    completed: { label: 'Completed', icon: '🍽️', color: '#6b7280', bg: '#f3f4f6', desc: 'Thank you for visiting Diesel Café!' },
+    completed: { label: 'Completed', icon: '🍽️', color: '#6b7280', bg: '#f3f4f6', desc: `Thank you for visiting ${cafeConfig.name}!` },
   };
 
   const status = statusConfig[orderStatus] || statusConfig.pending;
@@ -224,45 +330,51 @@ const OrderModal = ({ isOpen, onClose, tableFromQR }) => {
       {/* Sheet */}
       <div className="fixed inset-0 flex items-center justify-center z-50 px-4">
         <div className="rounded-2xl w-full max-w-md slide-up overflow-y-auto max-h-[92vh]"
-          style={{ background: '#ae7b45' }}>
+          style={{ background: 'var(--ordermodelbg)' }}>
 
           {/* Pull handle */}
           <div className="flex justify-center pt-3 pb-1 sm:hidden">
-            <div className="w-10 h-1 rounded-full bg-white/50" />
+            <div className="w-10 h-1 rounded-full bg-white" />
           </div>
 
           {/* ══ STEP 1: FORM ════════════════════════════════════════ */}
           {step === 'form' && (
             <>
               <div className="px-6 pt-5 pb-2">
-                <h2 className="font-black text-xl tracking-wide text-white">PLACE ORDER</h2>
-                <p className="text-gray-100 text-sm mt-1">{items.length} item(s) · ₹{totalAmount}</p>
+                <h2 className="font-black text-xl tracking-wide text-black" style={{ color: 'var(--ordermodelbgtext)' }}>PLACE ORDER</h2>
+                <p className=" text-sm mt-1" style={{ color: 'var(--ordermodelbgtext)' }}>{items.length} item(s) · ₹{totalAmount}</p>
               </div>
 
               {/* Order type selector */}
               <div className="mx-6 mb-3">
-                <p className="text-white text-xs font-bold uppercase tracking-widest mb-2 opacity-80">Order Type</p>
-                <div className="grid grid-cols-2 gap-2">
+                <p className="text-xs font-bold uppercase tracking-widest mb-2 opacity-80" style={{ color: 'var(--ordermodelbgtext)' }}>Order Type</p>
+                <div className={`grid gap-2 ${isTakeawayEnabled ? 'grid-cols-2' : 'grid-cols-1'}`}>
                   {[
-                    { id: 'dine-in', label: '🍽️ Dine In' },
-                    { id: 'takeaway', label: '🛍️ Takeaway' },
-                  ].map((t) => (
+                    { id: 'dine-in', label: '🍽️ Dine In', show: true },
+                    { id: 'takeaway', label: '🛍️ Takeaway', show: isTakeawayEnabled },
+                  ].filter(t => t.show).map((t) => (
                     <button key={t.id} type="button" onClick={() => setOrderType(t.id)}
                       className="flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold border-2 transition-all duration-200 active:scale-[0.97]"
                       style={{
-                        background: orderType === t.id ? '#940901' : 'rgba(255,255,255,0.15)',
-                        borderColor: orderType === t.id ? '#940901' : 'rgba(255,255,255,0.3)',
-                        color: 'white',
-                        boxShadow: orderType === t.id ? '0 4px 12px rgba(148,9,1,0.45)' : 'none',
+                        background: orderType === t.id ? 'var(--typeselectorbgactive)' : 'var(--typeselectorbg)',
+                        borderColor: orderType === t.id ? 'var(--typeselectorborderactive)' : 'var(--typeselectorborderinactive)',
+                        color: 'var(--typeselectortextactive)',
+                        boxShadow: orderType === t.id ? 'var(--typeselectorshadowactive)' : 'var(--typeselectorshadowinactive)',
                       }}>
                       {t.label}
                     </button>
                   ))}
                 </div>
-                {isTakeaway && (
+                {!isTakeawayEnabled && (
                   <div className="mt-2 flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold"
-                    style={{ background: 'rgba(0,0,0,0.2)', color: '#ffd700', border: '1px solid rgba(255,215,0,0.25)' }}>
-                    💳 Takeaway requires payment
+                    style={{ background: 'rgba(0,0,0,0.2)', color: 'var(--ordermodelbgmesseges)', border: '1px solid #00000040' }}>
+                    🚫 Takeaway is currently unavailable
+                  </div>
+                )}
+                {isTakeaway && isTakeawayEnabled && (
+                  <div className="mt-2 flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold"
+                    style={{ background: 'rgba(0,0,0,0.2)', color: 'var(--ordermodelbgmesseges)', border: '1px solid #00000040' }}>
+                    {isAutoPayEnabled ? '⚡ Online payment via Razorpay' : '💳 Takeaway requires payment'}
                   </div>
                 )}
               </div>
@@ -272,12 +384,12 @@ const OrderModal = ({ isOpen, onClose, tableFromQR }) => {
                 style={{ background: '#f6eee5', border: '1px solid #e0cdb8' }}>
                 {items.map((item) => (
                   <div key={item._id} className="flex justify-between text-sm">
-                    <span className="text-gray-700 font-medium">{item.name} <span className="font-normal text-gray-500">×{item.quantity}</span></span>
+                    <span className="font-medium" style={{ color: 'var(--ordermodelbgtextonsummery)' }}>{item.name} <span className="font-normal" style={{ color: 'var(--ordermodelbgtextonsummery)' }}>×{item.quantity}</span></span>
                     <span className="font-bold" style={{ color: '#31603D' }}>₹{item.price * item.quantity}</span>
                   </div>
                 ))}
                 <div className="border-t border-gray-200 pt-2 flex justify-between">
-                  <span className="font-black text-gray-800 text-sm">Total</span>
+                  <span className="font-black text-sm" style={{ color: 'var(--ordermodelbgtextonsummery)' }}>Total</span>
                   <span className="font-black" style={{ color: '#31603D' }}>₹{totalAmount}</span>
                 </div>
               </div>
@@ -285,7 +397,7 @@ const OrderModal = ({ isOpen, onClose, tableFromQR }) => {
               <form onSubmit={handleFormSubmit} className="px-6 pb-6 space-y-3">
                 {/* Name */}
                 <div>
-                  <label className="block font-bold text-sm mb-1 text-gray-100">Your Name *</label>
+                  <label className="block font-bold text-sm mb-1" style={{ color: 'var(--ordermodelbgtext)' }}>Your Name *</label>
                   <input type="text" value={name} onChange={(e) => setName(e.target.value)}
                     placeholder="Enter your name" className="input-base" maxLength={50} autoFocus />
                 </div>
@@ -293,10 +405,10 @@ const OrderModal = ({ isOpen, onClose, tableFromQR }) => {
                 {/* Phone — takeaway only */}
                 {isTakeaway && (
                   <div>
-                    <label className="block font-bold text-sm mb-1 text-gray-100">Mobile Number *</label>
+                    <label className="block font-bold text-sm mb-1" style={{ color: 'var(--ordermodelbgtext)' }}>Mobile Number *</label>
                     <div className="flex gap-2">
                       <div className="flex items-center justify-center px-3 rounded-xl font-bold text-sm bg-white text-gray-600 flex-shrink-0"
-                        style={{ border: '1.5px solid #e2d9c0', minWidth: '52px' }}>
+                        style={{ border: '1.5px solid', color: 'var(--text-muted)', minWidth: '52px' }}>
                         +91
                       </div>
                       <input type="tel" value={phone}
@@ -304,14 +416,14 @@ const OrderModal = ({ isOpen, onClose, tableFromQR }) => {
                         placeholder="10-digit number" className="input-base flex-1"
                         inputMode="numeric" maxLength={10} />
                     </div>
-                    <p className="text-white/60 text-xs mt-1">We'll call you when your order is ready</p>
+                    <p className=" text-xs mt-1" style={{ color: 'var(--ordermodelbgmesseges)' }}>We'll call you when your order is ready</p>
                   </div>
                 )}
 
                 {/* Table — dine-in only */}
                 {!isTakeaway && (
                   <div>
-                    <label className="block font-bold text-sm mb-1 text-gray-100">Table Number *</label>
+                    <label className="block font-bold text-sm mb-1" style={{ color: 'var(--ordermodelbgtext)' }}>Table Number *</label>
                     <input type="number" value={table} onChange={(e) => setTable(e.target.value)}
                       placeholder="e.g. 5" className="input-base"
                       readOnly={!!tableFromQR}
@@ -323,8 +435,8 @@ const OrderModal = ({ isOpen, onClose, tableFromQR }) => {
 
                 {/* Note */}
                 <div>
-                  <label className="block font-bold text-sm mb-1 text-gray-100">
-                    Special Note <span className="font-normal text-gray-100">(optional)</span>
+                  <label className="block font-bold text-sm mb-1" style={{ color: 'var(--ordermodelbgtext)' }}>
+                    Special Note <span className="font-normal" style={{ color: 'var(--ordermodelbgtext)' }}>(optional)</span>
                   </label>
                   <textarea value={note} onChange={(e) => setNote(e.target.value)}
                     placeholder="Allergies or special requests?" rows={2}
@@ -340,18 +452,18 @@ const OrderModal = ({ isOpen, onClose, tableFromQR }) => {
                 <div className="flex gap-3 pt-1">
                   <button type="button" onClick={handleClose}
                     className="flex-1 border-2 font-bold py-3 rounded-2xl text-sm active:scale-[0.98] transition-all"
-                    style={{ background: '#f6eee5', borderColor: '#940901', color: '#940901' }}>
+                    style={{ background: 'var(--cancelbuttonbg)', borderColor: 'var(--cancelbuttonborder)', color: 'var(--cancelbuttonborder)' }}>
                     Cancel
                   </button>
                   <button type="submit" disabled={loading}
                     className="btn-primary flex-1 py-3 rounded-2xl text-sm font-black tracking-wide uppercase disabled:opacity-30"
-                    style={{ background: '#940901' }}>
+                    style={{ background: 'var(--confirmbuttonbg)' }}>
                     {loading ? (
                       <span className="flex items-center justify-center gap-2">
-                        <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full spin inline-block" />
+                        <span className="w-4 h-4 border-2 border-white/50 border-t-white rounded-full spin inline-block" />
                         Placing…
                       </span>
-                    ) : isTakeaway ? 'Proceed to Pay →' : 'CONFIRM'}
+                    ) : isTakeaway ? 'Proceed to Pay' : 'CONFIRM'}
                   </button>
                 </div>
               </form>
@@ -361,16 +473,18 @@ const OrderModal = ({ isOpen, onClose, tableFromQR }) => {
           {/* ══ STEP 2: PAYMENT ══════════════════════════════════════ */}
           {step === 'payment' && (
             <div className="px-6 py-5">
-              {/* Header — title changes with selected method */}
+              {/* Header */}
               <div className="flex items-center gap-3 mb-4">
                 <button onClick={() => setStep('form')}
                   className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
-                  style={{ background: 'rgba(255,255,255,0.2)', color: 'white' }}>
-                  ←
-                </button>
+                  style={{ background: 'rgba(255,255,255,0.2)', color: 'white' }}>←</button>
                 <div>
-                  <h2 className="font-black text-lg text-white">{getPaymentTitle(paymentMethod)}</h2>
-                  <p className="text-white/70 text-xs">Complete payment to place order</p>
+                  <h2 className="font-black text-lg" style={{ color: 'var(--ordermodelbgtext)' }}>
+                    {isAutoPayEnabled ? 'Complete Payment' : getPaymentTitle(paymentMethod)}
+                  </h2>
+                  <p className="text-white/70 text-xs">
+                    {isAutoPayEnabled ? 'Secure payment powered by Razorpay' : 'Complete payment to place order'}
+                  </p>
                 </div>
               </div>
 
@@ -379,147 +493,146 @@ const OrderModal = ({ isOpen, onClose, tableFromQR }) => {
                 style={{ background: 'rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.15)' }}>
                 <p className="text-white/60 text-xs uppercase tracking-widest mb-1">Amount to Pay</p>
                 <p className="text-white font-black text-4xl">₹{totalAmount}</p>
+                <p className="text-white/40 text-xs mt-1">{items.length} item{items.length !== 1 ? 's' : ''} · Takeaway</p>
               </div>
 
-              {/* ── NEW: Payment Method Selector ─────────────────────────── */}
-              <div className="mb-4">
-                <p className="text-white/80 text-xs font-bold uppercase tracking-widest mb-2">
-                  Select Payment Method
-                </p>
-                <div className="grid grid-cols-3 gap-2">
-                  {PAYMENT_METHODS.map((m) => (
-                    <button
-                      key={m.id}
-                      type="button"
-                      onClick={() => setPaymentMethod(m.id)}
-                      className="flex flex-col items-center justify-center py-3 px-2 rounded-xl text-xs font-bold border-2 transition-all duration-200 active:scale-[0.97] text-center"
-                      style={{
-                        background: paymentMethod === m.id ? '#940901' : 'rgba(255,255,255,0.12)',
-                        borderColor: paymentMethod === m.id ? '#940901' : 'rgba(255,255,255,0.25)',
-                        color: 'white',
-                        boxShadow: paymentMethod === m.id ? '0 4px 12px rgba(148,9,1,0.45)' : 'none',
-                      }}
-                    >
-                      <span className="text-base mb-1 leading-none">
-                        {m.id === 'upi' ? '📱' : '💳'}
-                      </span>
-                      <span className="leading-tight">
-                        {m.id === 'upi' ? 'UPI' : m.id === 'debit-card' ? 'Debit' : 'Credit'}
-                      </span>
-                    </button>
-                  ))}
+              {error && (
+                <div className="mb-4 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-red-600 text-sm font-medium">
+                  ⚠️ {error}
                 </div>
-                <p className="text-white/40 text-[10px] mt-1.5 text-center">
-                  {PAYMENT_METHODS.find(m => m.id === paymentMethod)?.sub}
-                </p>
-              </div>
+              )}
 
-              {/* QR Code + UPI ID — only shown when UPI is selected */}
-              {paymentMethod === 'upi' && (
+              {/* ── AUTO PAY ON: Razorpay flow ──────────────────────────── */}
+              {isAutoPayEnabled ? (
                 <>
-                  <div className="bg-white rounded-2xl p-4 text-center mb-4">
-                    <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-3">
-                      Scan with any UPI app
+                  <button onClick={handleRazorpayPayment} disabled={loading}
+                    className="w-full py-4 rounded-2xl font-black text-sm text-white tracking-wide uppercase disabled:opacity-50 transition-all active:scale-[0.98] mb-3"
+                    style={{ background: 'linear-gradient(135deg, #528FF0, #3355CC)', boxShadow: '0 4px 16px rgba(83,143,240,0.4)' }}>
+                    {loading ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full spin inline-block" />
+                        Opening Payment…
+                      </span>
+                    ) : (
+                      <span className="flex items-center justify-center gap-2">
+                        <svg viewBox="0 0 24 24" className="w-5 h-5 fill-white"><path d="M20 4H4c-1.11 0-2 .89-2 2v12c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V6c0-1.11-.89-2-2-2zm0 14H4v-6h16v6zm0-10H4V6h16v2z" /></svg>
+                        Pay ₹{totalAmount} — UPI / Card / NetBanking
+                      </span>
+                    )}
+                  </button>
+                  <div className="flex items-center justify-center gap-2 mb-2">
+                    <span className="text-[10px] text-white/40 uppercase tracking-wider">Powered by</span>
+                    <span className="text-xs font-black text-white/60">Razorpay</span>
+                    <span className="text-white/20">·</span>
+                    <span className="text-[10px] text-white/40">GPay · PhonePe · Paytm · Cards</span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* ── MANUAL PAY: Payment method selector + QR + UTR ─── */}
+                  <div className="mb-4">
+                    <p className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: 'var(--ordermodelbgtext)' }}>
+                      Select Payment Method
                     </p>
-                    <img
-                      src={buildQrUrl(totalAmount)}
-                      alt="UPI QR Code"
-                      className="w-44 h-44 mx-auto rounded-xl"
-                      onError={(e) => { e.target.style.display = 'none'; }}
-                    />
-                    <p className="text-gray-400 text-xs mt-2">GPay · PhonePe · Paytm · BHIM · Any UPI app</p>
-
-                    {/* UPI ID */}
-                    <div className="mt-3 py-2 px-4 rounded-xl flex items-center justify-between gap-2"
-                      style={{ background: '#f6f0e8', border: '1px solid #e0cdb8' }}>
-                      <div className="text-left">
-                        <p className="text-gray-400 text-[10px] uppercase tracking-wider">UPI ID</p>
-                        <p className="text-gray-800 font-black text-sm">{CAFE_UPI_ID}</p>
-                      </div>
-                      <button
-                        onClick={() => { navigator.clipboard?.writeText(CAFE_UPI_ID); toast.success('UPI ID copied!'); }}
-                        className="text-xs font-bold px-3 py-1.5 rounded-lg transition-all"
-                        style={{ background: '#940901', color: 'white' }}>
-                        Copy
-                      </button>
+                    <div className="grid grid-cols-3 gap-2">
+                      {PAYMENT_METHODS.map((m) => (
+                        <button key={m.id} type="button" onClick={() => setPaymentMethod(m.id)}
+                          className="flex flex-col items-center justify-center py-3 px-2 rounded-xl text-xs font-bold border-2 transition-all active:scale-[0.97] text-center"
+                          style={{
+                            background: paymentMethod === m.id ? 'var(--typeselectorbgactive)' : 'rgba(255,255,255,0.12)',
+                            borderColor: paymentMethod === m.id ? 'var(--typeselectorborderactive)' : 'rgba(255,255,255,0.25)',
+                            color: 'white',
+                            boxShadow: paymentMethod === m.id ? '0 4px 12px var(--typeselectorbgactive)' : 'none',
+                          }}>
+                          <span className="text-base mb-1 leading-none">{m.id === 'upi' ? '📱' : '💳'}</span>
+                          <span className="leading-tight">{m.id === 'upi' ? 'UPI' : m.id === 'debit-card' ? 'Debit' : 'Credit'}</span>
+                        </button>
+                      ))}
                     </div>
+                    <p className="text-[10px] mt-1.5 text-center" style={{ color: 'var(--ordermodelbgmesseges)' }}>
+                      {PAYMENT_METHODS.find(m => m.id === paymentMethod)?.sub}
+                    </p>
                   </div>
 
-                  {/* Open UPI App button */}
-                  <a href={buildUpiLink(totalAmount)}
-                    className="flex items-center justify-center gap-2 w-full py-3.5 rounded-2xl font-black text-sm text-white mb-4 transition-all active:scale-[0.98]"
-                    style={{ background: 'linear-gradient(135deg,#4CAF50,#2e7d32)', textDecoration: 'none' }}>
-                    📱 Open UPI App to Pay
-                  </a>
+                  {paymentMethod === 'upi' && (
+                    <>
+                      <div className="bg-white rounded-2xl p-4 text-center mb-4">
+                        <p className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-3">Scan with any UPI app</p>
+                        <img src={buildQrUrl(totalAmount)} alt="UPI QR Code" className="w-44 h-44 mx-auto rounded-xl"
+                          onError={(e) => { e.target.style.display = 'none'; }} />
+                        <p className="text-gray-400 text-xs mt-2">GPay · PhonePe · Paytm · BHIM · Any UPI app</p>
+                        <div className="mt-3 py-2 px-4 rounded-xl flex items-center justify-between gap-2"
+                          style={{ background: 'var(--order-card-bg)', border: '1px solid #e0cdb8' }}>
+                          <div className="text-left">
+                            <p className="text-gray-400 text-[10px] uppercase tracking-wider">UPI ID</p>
+                            <p className="text-gray-800 font-black text-sm">{CAFE_UPI_ID}</p>
+                          </div>
+                          <button onClick={() => { navigator.clipboard?.writeText(CAFE_UPI_ID); toast.success('UPI ID copied!'); }}
+                            className="text-xs font-bold px-3 py-1.5 rounded-lg text-white"
+                            style={{ background: 'var(--typeselectorbgactive)' }}>Copy</button>
+                        </div>
+                      </div>
+                      <a href={buildUpiLink(totalAmount)}
+                        className="flex items-center justify-center gap-2 w-full py-3.5 rounded-2xl font-black text-sm mb-4 transition-all active:scale-[0.98] text-white no-underline"
+                        style={{ background: 'var(--confirmbuttonbg)', textDecoration: 'none' }}>
+                        📱 Open UPI App to Pay
+                      </a>
+                    </>
+                  )}
+
+                  {paymentMethod !== 'upi' && (
+                    <div className="mb-4 px-4 py-3 rounded-2xl text-sm"
+                      style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.15)' }}>
+                      <p className="text-white font-bold mb-1">
+                        {paymentMethod === 'debit-card' ? '💳 Pay via Debit Card' : '💳 Pay via Credit Card'}
+                      </p>
+                      <p className="text-white/60 text-xs leading-relaxed">
+                        Complete your payment and note the transaction reference number shown after payment.
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="flex-1 h-px" style={{ background: 'rgba(255,255,255,0.2)' }} />
+                    <p className="text-xs font-semibold whitespace-nowrap" style={{ color: 'var(--ordermodelbgmesseges)' }}>
+                      {paymentMethod === 'upi' ? 'After paying, enter UTR below' : 'Enter transaction reference below'}
+                    </p>
+                    <div className="flex-1 h-px" style={{ background: 'rgba(255,255,255,0.2)' }} />
+                  </div>
+
+                  <form onSubmit={handlePaymentSubmit} className="space-y-3 pb-4">
+                    <div>
+                      <label className="block font-bold text-sm mb-1 text-gray-100">{getUtrLabel(paymentMethod)}</label>
+                      <input type="text" value={utr}
+                        onChange={(e) => setUtr(e.target.value.replace(/\s/g, ''))}
+                        placeholder={getUtrPlaceholder(paymentMethod)} className="input-base"
+                        maxLength={30} inputMode="text" />
+                      <p className="text-xs mt-1" style={{ color: 'var(--ordermodelbgmesseges)' }}>
+                        {paymentMethod === 'upi' ? 'Find UTR in your UPI app under payment history' : 'Find this in your bank SMS or transaction receipt'}
+                      </p>
+                    </div>
+                    {utrError && (
+                      <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-red-600 text-sm font-medium">
+                        ⚠️ {utrError}
+                      </div>
+                    )}
+                    <button type="submit" disabled={submitLoading}
+                      className="w-full py-3.5 rounded-2xl font-black text-sm text-white tracking-widest uppercase disabled:opacity-40 transition-all active:scale-[0.98]"
+                      style={{ background: 'var(--confirmbuttonbg)' }}>
+                      {submitLoading ? (
+                        <span className="flex items-center justify-center gap-2">
+                          <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full spin inline-block" />
+                          Submitting…
+                        </span>
+                      ) : "I've Paid — Place Order"}
+                    </button>
+                    <p className="text-center text-white text-xs">Your order will be confirmed after payment verification</p>
+                  </form>
                 </>
               )}
-
-              {/* Info message for card payments */}
-              {paymentMethod !== 'upi' && (
-                <div className="mb-4 px-4 py-3 rounded-2xl text-sm"
-                  style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.15)' }}>
-                  <p className="text-white font-bold mb-1">
-                    {paymentMethod === 'debit-card' ? '💳 Pay via Debit Card' : '💳 Pay via Credit Card'}
-                  </p>
-                  <p className="text-white/60 text-xs leading-relaxed">
-                    Complete your payment using your {paymentMethod === 'debit-card' ? 'debit' : 'credit'} card at the counter or via your bank app. Note the transaction reference number shown after payment.
-                  </p>
-                </div>
-              )}
-
-              <div className="flex items-center gap-3 mb-4">
-                <div className="flex-1 h-px" style={{ background: 'rgba(255,255,255,0.2)' }} />
-                <p className="text-white/50 text-xs font-semibold whitespace-nowrap">
-                  {paymentMethod === 'upi' ? 'After paying, enter UTR below' : 'Enter transaction reference below'}
-                </p>
-                <div className="flex-1 h-px" style={{ background: 'rgba(255,255,255,0.2)' }} />
-              </div>
-
-              {/* Transaction ID form — label changes based on method */}
-              <form onSubmit={handlePaymentSubmit} className="space-y-3 pb-4">
-                <div>
-                  <label className="block font-bold text-sm mb-1 text-gray-100">
-                    {getUtrLabel(paymentMethod)}
-                  </label>
-                  <input
-                    type="text"
-                    value={utr}
-                    onChange={(e) => setUtr(e.target.value.replace(/\s/g, ''))}
-                    placeholder={getUtrPlaceholder(paymentMethod)}
-                    className="input-base"
-                    maxLength={30}
-                    inputMode="text"
-                  />
-                  <p className="text-white/55 text-xs mt-1">
-                    {paymentMethod === 'upi'
-                      ? 'Find UTR in your UPI app under payment history'
-                      : 'Find this in your bank SMS or transaction receipt'}
-                  </p>
-                </div>
-
-                {utrError && (
-                  <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-red-600 text-sm font-medium">
-                    ⚠️ {utrError}
-                  </div>
-                )}
-
-                <button type="submit" disabled={submitLoading}
-                  className="w-full py-3.5 rounded-2xl font-black text-sm text-white tracking-widest uppercase disabled:opacity-40 transition-all active:scale-[0.98]"
-                  style={{ background: '#940901' }}>
-                  {submitLoading ? (
-                    <span className="flex items-center justify-center gap-2">
-                      <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full spin inline-block" />
-                      Submitting…
-                    </span>
-                  ) : "I've Paid — Place Order"}
-                </button>
-
-                <p className="text-center text-white/40 text-xs">
-                  Your order will be confirmed after payment verification
-                </p>
-              </form>
             </div>
           )}
+
 
           {/* ══ STEP 3: SUCCESS ═════════════════════════════════════ */}
           {step === 'success' && (

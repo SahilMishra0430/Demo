@@ -127,4 +127,54 @@ router.put('/toggle-shop', protect, async (req, res) => {
   }
 });
 
+// GET /auth/settings — PUBLIC — OrderModal fetches this to know what to show
+router.get('/settings', async (req, res) => {
+  try {
+    const admin = await Admin.findOne().select('isOpen isTakeawayEnabled isAutoPayEnabled');
+    res.json({
+      isOpen:            admin?.isOpen            ?? true,
+      isTakeawayEnabled: admin?.isTakeawayEnabled ?? true,
+      isAutoPayEnabled:  admin?.isAutoPayEnabled  ?? false,
+    });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error.' });
+  }
+});
+
+// PATCH /auth/toggle-takeaway — protected
+router.patch('/toggle-takeaway', protect, async (req, res) => {
+  try {
+    const admin = await Admin.findById(req.admin.id);
+    if (!admin) return res.status(404).json({ message: 'Admin not found.' });
+    admin.isTakeawayEnabled = !admin.isTakeawayEnabled;
+    await admin.save();
+    res.json({
+      isTakeawayEnabled: admin.isTakeawayEnabled,
+      message: admin.isTakeawayEnabled ? 'Takeaway orders enabled' : 'Takeaway orders disabled',
+    });
+  } catch (err) {
+    console.error('Toggle takeaway error:', err);
+    res.status(500).json({ message: 'Server error.' });
+  }
+});
+
+// PATCH /auth/toggle-autopay — protected
+router.patch('/toggle-autopay', protect, async (req, res) => {
+  try {
+    const admin = await Admin.findById(req.admin.id);
+    if (!admin) return res.status(404).json({ message: 'Admin not found.' });
+    admin.isAutoPayEnabled = !admin.isAutoPayEnabled;
+    await admin.save();
+    res.json({
+      isAutoPayEnabled: admin.isAutoPayEnabled,
+      message: admin.isAutoPayEnabled
+        ? 'Auto payment (Razorpay) enabled'
+        : 'Manual UPI payment enabled',
+    });
+  } catch (err) {
+    console.error('Toggle autopay error:', err);
+    res.status(500).json({ message: 'Server error.' });
+  }
+});
+
 module.exports = router;

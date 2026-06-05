@@ -1,11 +1,13 @@
 const mongoose = require('mongoose');
 
 const orderItemSchema = new mongoose.Schema({
-  menuItem: { type: mongoose.Schema.Types.ObjectId, ref: 'MenuItem' },
-  name:     { type: String,  required: true },
-  price:    { type: Number,  required: true },
-  quantity: { type: Number,  required: true, min: 1 },
-  veg:      { type: Boolean, default: true },
+  menuItem:     { type: mongoose.Schema.Types.ObjectId, ref: 'MenuItem' },
+  name:         { type: String,  required: true },
+  price:        { type: Number,  required: true },
+  quantity:     { type: Number,  required: true, min: 1 },
+  veg:          { type: Boolean, default: true },
+  // ── Half / Full plate variant — '' means no variant (legacy item) ─────────
+  selectedSize: { type: String,  enum: ['half', 'full', ''], default: '' },
 });
 
 const orderSchema = new mongoose.Schema(
@@ -35,25 +37,26 @@ const orderSchema = new mongoose.Schema(
     paymentStatus: {
       type: String,
       enum: [
-        'not_required',         // dine-in
-        'pending_verification', // takeaway — UTR submitted, admin must verify
-        'paid',                 // admin verified
-        'failed',               // marked failed by admin
+        'not_required',
+        'pending_verification',
+        'paid',
+        'failed',
       ],
       default: 'not_required',
     },
 
-    // UTR = Unique Transaction Reference — transaction ID from payment app
     utrNumber: { type: String, default: '', trim: true },
 
-    // ── NEW: which payment method customer used ──────────────────────────────
     paymentMethod: {
       type: String,
-      enum: ['upi', 'debit-card', 'credit-card', 'not_required'],
+      enum: ['upi', 'debit-card', 'credit-card', 'not_required', 'razorpay'],
       default: 'not_required',
     },
 
-    // Daily pickup token e.g. "T-001"
+    // ── Razorpay fields ──────────────────────────────────────────────────────
+    paymentId:       { type: String, default: '' },   // Razorpay payment ID
+    razorpayOrderId: { type: String, default: '' },   // Razorpay order ID
+
     pickupToken: { type: String, default: '' },
   },
   { timestamps: true }

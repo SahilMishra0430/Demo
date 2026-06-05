@@ -1,9 +1,52 @@
 const express = require('express');
-const Order   = require('../models/Order');
-const { protect }     = require('../middleware/auth');
+const Order = require('../models/Order');
+const { protect } = require('../middleware/auth');
 const requireShopOpen = require('../middleware/shopStatus');
+const webpush = require('web-push');
+const PushSubscription = require('../models/PushSubscription');
 
 const router = express.Router();
+
+// ── VAPID setup ───────────────────────────────────────────────────────────────
+const cafeConfig = require('../config/cafeConfig');
+
+webpush.setVapidDetails(
+  `mailto:${cafeConfig.cafe.vapidEmail}`,
+  cafeConfig.env.vapidPublicKey,
+  cafeConfig.env.vapidPrivateKey
+);
+
+// ── Send push notification to all subscribed admin devices ───────────────────
+const sendOrderPush = async (order) => {
+  try {
+    const subs = await PushSubscription.find({});
+    if (!subs.length) return;
+
+    const payload = JSON.stringify({
+      title: '🛎️ New Order — Velvet Vault',
+      body: `${order.orderType === 'takeaway' ? '🥡 Takeaway' : `🪑 Table ${order.tableNumber}`} · ${order.customerName} · ₹${order.totalAmount}`,
+      orderId: String(order._id),
+    });
+
+    const results = await Promise.allSettled(
+      subs.map((sub) =>
+        webpush.sendNotification({ endpoint: sub.endpoint, keys: sub.keys }, payload)
+      )
+    );
+
+    // Clean up expired / invalid subscriptions automatically
+    results.forEach((result, i) => {
+      if (result.status === 'rejected') {
+        const code = result.reason?.statusCode;
+        if (code === 404 || code === 410) {
+          PushSubscription.deleteOne({ endpoint: subs[i].endpoint }).catch(() => { });
+        }
+      }
+    });
+  } catch (err) {
+    console.error('Push notification error:', err);
+  }
+};
 
 // ── Generate daily pickup token T-001, T-002… ─────────────────────────────────
 const generatePickupToken = async () => {
@@ -25,19 +68,23 @@ router.post('/', requireShopOpen, async (req, res) => {
       paymentMethod, // ← NEW
     } = req.body;
 
-    if (!customerName || !tableNumber || !items || items.length === 0) {
+    if (!customerName || !items || !tableNumber || items.length === 0) {
       return res.status(400).json({ message: 'customerName, tableNumber and items are required.' });
     }
 
     const isTakeaway = orderType === 'takeaway';
 
-    // Takeaway requires phone and UTR
+    // Takeaway requires phone always
     if (isTakeaway) {
       if (!phoneNumber || phoneNumber.trim().length < 10) {
         return res.status(400).json({ message: 'Valid phone number is required for takeaway.' });
       }
-      if (!utrNumber || utrNumber.trim().length < 6) {
-        return res.status(400).json({ message: 'UTR/Transaction ID is required for takeaway.' });
+      // UTR only required for manual UPI/card payments — NOT for Razorpay
+      const isRazorpay = paymentMethod === 'razorpay';
+      if (!isRazorpay) {
+        if (!utrNumber || utrNumber.trim().length < 6) {
+          return res.status(400).json({ message: 'UTR/Transaction ID is required for takeaway.' });
+        }
       }
     }
 
@@ -45,26 +92,30 @@ router.post('/', requireShopOpen, async (req, res) => {
     const pickupToken = isTakeaway ? await generatePickupToken() : '';
 
     // Validate paymentMethod — default to 'upi' for takeaway if not provided
-    const validMethods = ['upi', 'debit-card', 'credit-card'];
+    const validMethods = ['upi', 'debit-card', 'credit-card', 'razorpay'];
     const resolvedPaymentMethod = isTakeaway
       ? (validMethods.includes(paymentMethod) ? paymentMethod : 'upi')
       : 'not_required';
 
     const order = new Order({
       customerName,
-      phoneNumber:   phoneNumber   || '',
-      tableNumber:   isTakeaway ? 'Takeaway' : tableNumber,
-      orderType:     isTakeaway ? 'takeaway' : 'dine-in',
+      phoneNumber: phoneNumber || '',
+      tableNumber: isTakeaway ? 'Takeaway' : tableNumber,
+      orderType: isTakeaway ? 'takeaway' : 'dine-in',
       items,
       totalAmount,
-      note:          note || '',
+      note: note || '',
       paymentStatus: isTakeaway ? 'pending_verification' : 'not_required',
-      utrNumber:     isTakeaway ? utrNumber.trim() : '',
+      utrNumber: isTakeaway ? utrNumber.trim() : '',
       paymentMethod: resolvedPaymentMethod, // ← NEW
       pickupToken,
     });
 
     await order.save();
+
+    // Fire push to all admin devices — non-blocking, won't delay the response
+    sendOrderPush(order).catch(() => { });
+
     res.status(201).json(order);
   } catch (err) {
     console.error('Place order error:', err);
@@ -84,7 +135,7 @@ router.get('/', protect, async (req, res) => {
     }
     if (date) {
       const start = new Date(date); start.setHours(0, 0, 0, 0);
-      const end   = new Date(date); end.setHours(23, 59, 59, 999);
+      const end = new Date(date); end.setHours(23, 59, 59, 999);
       filter.createdAt = { $gte: start, $lte: end };
     }
 
@@ -102,10 +153,10 @@ router.get('/track/:id', async (req, res) => {
     const order = await Order.findById(req.params.id);
     if (!order) return res.status(404).json({ message: 'Order not found.' });
     res.json({
-      status:        order.status,
-      totalAmount:   order.totalAmount,
-      orderType:     order.orderType,
-      pickupToken:   order.pickupToken,
+      status: order.status,
+      totalAmount: order.totalAmount,
+      orderType: order.orderType,
+      pickupToken: order.pickupToken,
       paymentStatus: order.paymentStatus,
     });
   } catch (err) {
@@ -116,19 +167,19 @@ router.get('/track/:id', async (req, res) => {
 // ── GET /orders/daily-stats — admin only ──────────────────────────────────────
 router.get('/daily-stats', protect, async (req, res) => {
   try {
-    const today    = new Date(); today.setHours(0, 0, 0, 0);
+    const today = new Date(); today.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
 
     const orders = await Order.find({
       createdAt: { $gte: today, $lt: tomorrow },
-      status:    { $ne: 'cancelled' },
+      status: { $ne: 'cancelled' },
     });
 
-    const totalSales          = orders.reduce((sum, o) => sum + o.totalAmount, 0);
-    const totalOrders         = orders.length;
-    const dineInOrders        = orders.filter((o) => (o.orderType || 'dine-in') === 'dine-in').length;
-    const takeawayOrders      = orders.filter((o) => o.orderType === 'takeaway').length;
-    const takeawaySales       = orders.filter((o) => o.orderType === 'takeaway').reduce((sum, o) => sum + o.totalAmount, 0);
+    const totalSales = orders.reduce((sum, o) => sum + o.totalAmount, 0);
+    const totalOrders = orders.length;
+    const dineInOrders = orders.filter((o) => (o.orderType || 'dine-in') === 'dine-in').length;
+    const takeawayOrders = orders.filter((o) => o.orderType === 'takeaway').length;
+    const takeawaySales = orders.filter((o) => o.orderType === 'takeaway').reduce((sum, o) => sum + o.totalAmount, 0);
     const pendingVerification = orders.filter((o) => o.paymentStatus === 'pending_verification').length;
 
     res.json({

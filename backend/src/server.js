@@ -12,6 +12,8 @@ const menuRoutes = require("./routes/menu");
 const orderRoutes = require("./routes/orders");
 const analyticsRoutes = require("./routes/analyticsRoutes");
 const shopStatusRoutes = require("./routes/shopStatus");
+const pushRoutes = require("./routes/push");
+const cafeConfig = require('./config/cafeConfig');
 
 const app = express();
 
@@ -42,6 +44,7 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
+app.set('trust proxy', 1);
 
 // ── Rate Limiters ─────────────────────────────────────────────────────────────
 const authLimiter = rateLimit({
@@ -80,6 +83,7 @@ app.use("/api/menu", menuRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/analytics", analyticsRoutes);
 app.use("/api/shop-status", shopStatusRoutes);
+app.use("/api/push", pushRoutes);
 
 app.get("/api/health", (req, res) => {
   res.json({
@@ -102,7 +106,7 @@ app.use((err, req, res, next) => {
   });
 });
 
-const PORT = process.env.PORT || 5000;
+const PORT = cafeConfig.env.port;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
   console.log(`Allowed CORS origins:`, ALLOWED_ORIGINS);

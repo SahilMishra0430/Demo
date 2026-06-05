@@ -1,7 +1,7 @@
 /**
  * routes/menu.js
  *
- * FIX: Admin requests (with JWT Bearer token) bypass requireShopOpen.
+ * Admin requests (with JWT Bearer token) bypass requireShopOpen.
  * Customers without a token still get 403 when the shop is closed.
  * All write routes (POST, PUT, DELETE) are admin-only and unaffected.
  */
@@ -14,16 +14,10 @@ const requireShopOpen = require('../middleware/shopStatus');
 const router = express.Router();
 
 // ── GET /api/menu ─────────────────────────────────────────────────────────────
-// Public customers → gated by requireShopOpen (403 when closed)
-// Admin with JWT  → bypasses shop status check (always works)
 router.get(
   '/',
   (req, res, next) => {
-    // If request carries an admin JWT, skip the shop-status gate entirely
-    if (req.headers.authorization?.startsWith('Bearer ')) {
-      return next();
-    }
-    // No token = customer request → apply shop-status check
+    if (req.headers.authorization?.startsWith('Bearer ')) return next();
     return requireShopOpen(req, res, next);
   },
   async (req, res) => {
@@ -43,11 +37,45 @@ router.get(
 // ── POST /api/menu ────────────────────────────────────────────────────────────
 router.post('/', protect, async (req, res) => {
   try {
-    const { superCategory, subCategory, name, description, price, veg, image, available } = req.body;
-    if (!superCategory || !subCategory || !name || price === undefined) {
-      return res.status(400).json({ message: 'superCategory, subCategory, name and price are required.' });
+    const {
+      superCategory, subCategory, name, description,
+      price, veg, image, available,
+      halfPrice, fullPrice, halfDescription, fullDescription,
+    } = req.body;
+
+    if (!superCategory || !subCategory || !name) {
+      return res.status(400).json({ message: 'superCategory, subCategory and name are required.' });
     }
-    const item = new MenuItem({ superCategory, subCategory, name, description, price, veg, image, available });
+
+    // At least one price must be provided
+    const hasPrice     = price     !== undefined && price     !== null && price     !== '';
+    const hasHalfPrice = halfPrice !== undefined && halfPrice !== null && halfPrice !== '';
+    const hasFullPrice = fullPrice !== undefined && fullPrice !== null && fullPrice !== '';
+
+    if (!hasPrice && !hasHalfPrice && !hasFullPrice) {
+      return res.status(400).json({ message: 'At least one price (price, halfPrice, or fullPrice) is required.' });
+    }
+
+    // Derive fallback price: fullPrice → halfPrice → price
+    const resolvedPrice = hasPrice
+      ? Number(price)
+      : hasFullPrice
+        ? Number(fullPrice)
+        : Number(halfPrice);
+
+    const item = new MenuItem({
+      superCategory, subCategory, name,
+      description:    description    || '',
+      price:          resolvedPrice,
+      veg:            veg !== undefined ? veg : true,
+      image:          image          || '',
+      available:      available !== undefined ? available : true,
+      halfPrice:      hasHalfPrice ? Number(halfPrice) : null,
+      fullPrice:      hasFullPrice ? Number(fullPrice) : null,
+      halfDescription: halfDescription || '',
+      fullDescription: fullDescription || '',
+    });
+
     await item.save();
     res.status(201).json(item);
   } catch (err) {
@@ -59,10 +87,43 @@ router.post('/', protect, async (req, res) => {
 // ── PUT /api/menu/:id ─────────────────────────────────────────────────────────
 router.put('/:id', protect, async (req, res) => {
   try {
-    const allowed = ['superCategory', 'subCategory', 'name', 'description', 'price', 'veg', 'image', 'available'];
+    const allowed = [
+      'superCategory', 'subCategory', 'name', 'description',
+      'price', 'veg', 'image', 'available',
+      'halfPrice', 'fullPrice', 'halfDescription', 'fullDescription',
+    ];
+
     const updates = {};
-    allowed.forEach(k => { if (req.body[k] !== undefined) updates[k] = req.body[k]; });
-    const item = await MenuItem.findByIdAndUpdate(req.params.id, updates, { new: true, runValidators: true });
+    allowed.forEach((k) => {
+      if (req.body[k] !== undefined) updates[k] = req.body[k];
+    });
+
+    // If half/full prices are being set and no explicit price change,
+    // keep price in sync with fullPrice (or halfPrice) as fallback
+    if ((updates.halfPrice !== undefined || updates.fullPrice !== undefined) && updates.price === undefined) {
+      const existing = await MenuItem.findById(req.params.id).lean();
+      if (existing) {
+        const fp = updates.fullPrice  !== undefined ? updates.fullPrice  : existing.fullPrice;
+        const hp = updates.halfPrice  !== undefined ? updates.halfPrice  : existing.halfPrice;
+        if (fp != null) updates.price = Number(fp);
+        else if (hp != null) updates.price = Number(hp);
+      }
+    }
+
+    // Coerce numeric fields
+    ['price', 'halfPrice', 'fullPrice'].forEach((k) => {
+      if (updates[k] !== undefined) {
+        updates[k] = updates[k] === '' || updates[k] === null ? null : Number(updates[k]);
+      }
+    });
+    // price must never be null (schema required)
+    if (updates.price === null || isNaN(updates.price)) delete updates.price;
+
+    const item = await MenuItem.findByIdAndUpdate(
+      req.params.id,
+      updates,
+      { new: true, runValidators: true }
+    );
     if (!item) return res.status(404).json({ message: 'Menu item not found.' });
     res.json(item);
   } catch (err) {

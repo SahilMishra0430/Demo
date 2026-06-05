@@ -1,19 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { cafeConfig } from '../config/cafeConfig';
 import api from '../api/axios';
 
+const { name, type, admin, storage } = cafeConfig;
+
 const AdminLogin = () => {
-  const [email, setEmail] = useState('');
+  const [email,    setEmail]    = useState('');
   const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [loading,  setLoading]  = useState(false);
+  const [error,    setError]    = useState('');
   const [showPass, setShowPass] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
-    const token = localStorage.getItem('diesel_admin_token');
-    if (token) navigate('/admin/dashboard');
-  }, [navigate]);
+    const token = localStorage.getItem(admin.tokenKey);
+    if (token) navigate('/admin/dashboard', { replace: true });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -22,8 +25,8 @@ const AdminLogin = () => {
     setError('');
     try {
       const res = await api.post('/auth/login', { email: email.trim(), password });
-      localStorage.setItem('diesel_admin_token', res.data.token);
-      navigate('/admin/dashboard');
+      localStorage.setItem(admin.tokenKey, res.data.token);
+      navigate('/admin/dashboard', { replace: true });
     } catch (err) {
       setError(err.response?.data?.message || 'Login failed. Check your credentials.');
     } finally {
@@ -33,27 +36,20 @@ const AdminLogin = () => {
 
   return (
     <div
-      className="min-h-screen flex items-center justify-center px-4 font-montserrat relative overflow-hidden"
-      style={{ background: 'linear-gradient(160deg, #0f1a1e 0%, #1a2f35 50%, #243f47 100%)' }}
+      className="min-h-screen flex items-center justify-center px-4 relative overflow-hidden"
+      style={{ background: 'linear-gradient(160deg, var(--admin-deep) 0%, #1a2f35 50%, var(--admin-dark) 100%)' }}
     >
       {/* Background decorative circles */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div
-          className="absolute -top-32 -right-32 w-80 h-80 rounded-full opacity-10"
-          style={{ background: 'radial-gradient(circle, #007B8B, transparent)' }}
-        />
-        <div
-          className="absolute -bottom-24 -left-24 w-64 h-64 rounded-full opacity-10"
-          style={{ background: 'radial-gradient(circle, #00A3B8, transparent)' }}
-        />
-        {/* Subtle grid */}
-        <div
-          className="absolute inset-0 opacity-[0.03]"
+        <div className="absolute -top-32 -right-32 w-80 h-80 rounded-full opacity-10"
+          style={{ background: 'radial-gradient(circle, var(--admin-accent), transparent)' }} />
+        <div className="absolute -bottom-24 -left-24 w-64 h-64 rounded-full opacity-10"
+          style={{ background: 'radial-gradient(circle, var(--admin-accent), transparent)' }} />
+        <div className="absolute inset-0 opacity-[0.03]"
           style={{
             backgroundImage: 'linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px)',
             backgroundSize: '40px 40px',
-          }}
-        />
+          }} />
       </div>
 
       <div className="relative w-full max-w-sm">
@@ -61,81 +57,59 @@ const AdminLogin = () => {
         <div className="text-center mb-10">
           <div
             className="w-20 h-20 rounded-2xl mx-auto mb-5 flex items-center justify-center shadow-2xl"
-            style={{ background: 'linear-gradient(135deg, #325862, #243f47)', boxShadow: '0 12px 40px rgba(0,123,139,0.4)' }}
+            style={{ background: 'linear-gradient(135deg, var(--admin), var(--admin-dark))', boxShadow: '0 12px 40px rgba(0,123,139,0.4)' }}
           >
-            {localStorage.getItem('diesel_logo_url') ? (
-              <img src={localStorage.getItem('diesel_logo_url')} alt="logo" className="w-full h-full rounded-2xl object-cover" />
+            {localStorage.getItem(storage.logo) ? (
+              <img src={localStorage.getItem(storage.logo)} alt="logo" className="w-full h-full rounded-2xl object-cover" />
             ) : (
               <svg viewBox="0 0 24 24" className="w-10 h-10 fill-white">
                 <path d="M2 21h18v-2H2v2zM20 8H4V5h16v3zm-2 7H6V9h12v6z" />
               </svg>
             )}
           </div>
-          <h1 className="text-white font-black text-4xl tracking-widest" style={{ fontFamily: '"Playfair Display", serif', color: '#d6993c', letterSpacing: '0.2em' }}>DIESEL</h1>
-          <p className="font-light text-sm tracking-[0.6em] uppercase mt-1" style={{ color: '#d6993c' }}>
-            Café Admin
+          <h1
+            className="font-black text-4xl tracking-widest"
+            style={{ fontFamily: '"Playfair Display", serif', color: 'var(--accent)', letterSpacing: '0.2em' }}
+          >
+            {name.toUpperCase()}
+          </h1>
+          <p className="font-light text-sm tracking-[0.6em] uppercase mt-1" style={{ color: 'var(--accent)' }}>
+            {type} Admin
           </p>
         </div>
 
         {/* Card */}
-        <div
-          className="rounded-3xl p-8 shadow-2xl"
-          style={{
-            background: 'rgba(255,255,255,0.05)',
-            backdropFilter: 'blur(20px)',
-            border: '1px solid rgba(255,255,255,0.1)',
-          }}
-        >
+        <div className="rounded-3xl p-8 shadow-2xl" style={{ background: 'rgba(255,255,255,0.05)', backdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.1)' }}>
           <h2 className="text-white font-black text-lg mb-1">Welcome Back</h2>
           <p className="text-sm mb-7" style={{ color: 'rgba(255,255,255,0.4)' }}>
             Sign in to manage orders &amp; menu
           </p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Email */}
             <div>
-              <label className="block text-xs font-bold mb-2 uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.5)' }}>
-                Email
-              </label>
+              <label className="block text-xs font-bold mb-2 uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.5)' }}>Email</label>
               <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="admin@dieselcafe.com"
-                autoComplete="email"
+                type="email" value={email} onChange={(e) => setEmail(e.target.value)}
+                placeholder={admin.emailPlaceholder} autoComplete="email"
                 className="w-full rounded-xl px-4 py-3 text-white text-sm font-medium placeholder-white/20 focus:outline-none transition-all"
-                style={{
-                  background: 'rgba(255,255,255,0.07)',
-                  border: '1.5px solid rgba(255,255,255,0.12)',
-                }}
-                onFocus={(e) => { e.target.style.borderColor = '#d6993c'; e.target.style.boxShadow = '0 0 0 3px rgba(214,153,60,0.2)'; }}
-                onBlur={(e) => { e.target.style.borderColor = 'rgba(255,255,255,0.12)'; e.target.style.boxShadow = 'none'; }}
+                style={{ background: 'rgba(255,255,255,0.07)', border: '1.5px solid rgba(255,255,255,0.12)' }}
+                onFocus={(e) => { e.target.style.borderColor = 'var(--accent)'; e.target.style.boxShadow = '0 0 0 3px rgba(214,153,60,0.2)'; }}
+                onBlur={(e)  => { e.target.style.borderColor = 'rgba(255,255,255,0.12)'; e.target.style.boxShadow = 'none'; }}
               />
             </div>
 
-            {/* Password */}
             <div>
-              <label className="block text-xs font-bold mb-2 uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.5)' }}>
-                Password
-              </label>
+              <label className="block text-xs font-bold mb-2 uppercase tracking-wider" style={{ color: 'rgba(255,255,255,0.5)' }}>Password</label>
               <div className="relative">
                 <input
-                  type={showPass ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  autoComplete="current-password"
+                  type={showPass ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••" autoComplete="current-password"
                   className="w-full rounded-xl px-4 py-3 pr-12 text-white text-sm font-medium placeholder-white/20 focus:outline-none transition-all"
-                  style={{
-                    background: 'rgba(255,255,255,0.07)',
-                    border: '1.5px solid rgba(255,255,255,0.12)',
-                  }}
-                  onFocus={(e) => { e.target.style.borderColor = '#d6993c'; e.target.style.boxShadow = '0 0 0 3px rgba(214,153,60,0.2)'; }}
-                  onBlur={(e) => { e.target.style.borderColor = 'rgba(255,255,255,0.12)'; e.target.style.boxShadow = 'none'; }}
+                  style={{ background: 'rgba(255,255,255,0.07)', border: '1.5px solid rgba(255,255,255,0.12)' }}
+                  onFocus={(e) => { e.target.style.borderColor = 'var(--accent)'; e.target.style.boxShadow = '0 0 0 3px rgba(214,153,60,0.2)'; }}
+                  onBlur={(e)  => { e.target.style.borderColor = 'rgba(255,255,255,0.12)'; e.target.style.boxShadow = 'none'; }}
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowPass(!showPass)}
+                <button type="button" onClick={() => setShowPass(!showPass)}
                   className="absolute right-3.5 top-1/2 -translate-y-1/2 transition-colors"
                   style={{ color: 'rgba(255,255,255,0.3)' }}
                   onMouseEnter={(e) => { e.currentTarget.style.color = 'rgba(255,255,255,0.7)'; }}
@@ -152,41 +126,29 @@ const AdminLogin = () => {
               </div>
             </div>
 
-            {/* Error */}
             {error && (
-              <div
-                className="rounded-xl px-4 py-3 text-sm font-medium"
-                style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', color: '#fca5a5' }}
-              >
+              <div className="rounded-xl px-4 py-3 text-sm font-medium" style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', color: '#fca5a5' }}>
                 ⚠️ {error}
               </div>
             )}
 
-            {/* Submit */}
             <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-3.5 rounded-2xl font-black text-sm tracking-widest uppercase transition-all mt-2 disabled:opacity-60 disabled:cursor-not-allowed active:scale-[0.98]"
-              style={{
-                background: 'linear-gradient(135deg, #325862, #243f47)',
-                color: 'white',
-                boxShadow: '0 8px 24px rgba(0,123,139,0.4)',
-              }}
+              type="submit" disabled={loading}
+              className="w-full py-3.5 rounded-2xl font-black text-sm tracking-widest uppercase transition-all mt-2 disabled:opacity-60 disabled:cursor-not-allowed active:scale-[0.98] text-white"
+              style={{ background: 'linear-gradient(135deg, var(--admin), var(--admin-dark))', boxShadow: '0 8px 24px rgba(0,123,139,0.4)' }}
             >
               {loading ? (
                 <span className="flex items-center justify-center gap-2">
                   <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full spin inline-block" />
                   Signing in…
                 </span>
-              ) : (
-                'Sign In →'
-              )}
+              ) : 'Sign In →'}
             </button>
           </form>
         </div>
 
         <p className="text-center text-xs mt-8" style={{ color: 'rgba(255,255,255,0.2)' }}>
-          Diesel Café Management System © {new Date().getFullYear()}
+          {name} {type} Management System © {new Date().getFullYear()}
         </p>
       </div>
     </div>

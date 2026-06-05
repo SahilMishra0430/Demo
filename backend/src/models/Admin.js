@@ -7,7 +7,9 @@ const adminSchema = new mongoose.Schema(
     password: { type: String, required: true, minlength: 6 },
     name: { type: String, default: 'Admin' },
     logoUrl: { type: String, default: '' },  // base64 or URL — persisted in DB
-    isOpen: { type: Boolean, default: true },
+    isOpen:            { type: Boolean, default: true  },
+    isTakeawayEnabled: { type: Boolean, default: true  },  // controls takeaway ordering
+    isAutoPayEnabled:  { type: Boolean, default: false },  // Razorpay vs manual UPI
   },
   { timestamps: true }
 );

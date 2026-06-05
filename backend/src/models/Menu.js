@@ -5,7 +5,7 @@ const menuItemSchema = new mongoose.Schema(
     superCategory: {
       type: String,
       required: true,
-      enum: ['Meals', 'Snacks', 'Salad & Soup', 'Beverages', 'All Items'],
+      enum: ['Chinese', 'Snacks', 'Pasta & Maggie', 'Beverages', 'Combos', 'All Items'],
     },
     subCategory: {
       type: String,
@@ -21,11 +21,34 @@ const menuItemSchema = new mongoose.Schema(
       default: '',
       trim: true,
     },
+    // ── Legacy / fallback price (kept required for backward compat) ──────────
     price: {
       type: Number,
       required: true,
       min: 0,
     },
+    // ── Half / Full plate pricing ─────────────────────────────────────────────
+    halfPrice: {
+      type: Number,
+      default: null,
+      min: 0,
+    },
+    fullPrice: {
+      type: Number,
+      default: null,
+      min: 0,
+    },
+    halfDescription: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    fullDescription: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    // ─────────────────────────────────────────────────────────────────────────
     veg: {
       type: Boolean,
       default: true,
