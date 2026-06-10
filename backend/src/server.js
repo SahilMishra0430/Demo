@@ -6,13 +6,14 @@ const morgan = require("morgan");
 const rateLimit = require("express-rate-limit");
 const mongoSanitize = require("express-mongo-sanitize");
 const connectDB = require("./config/db");
-const paymentRoutes = require('./routes/payments')
+const paymentRoutes = require('./routes/payments');
 const authRoutes = require("./routes/auth");
 const menuRoutes = require("./routes/menu");
 const orderRoutes = require("./routes/orders");
 const analyticsRoutes = require("./routes/analyticsRoutes");
 const shopStatusRoutes = require("./routes/shopStatus");
 const pushRoutes = require("./routes/push");
+const couponRoutes = require("./routes/couponRoutes"); // ← NEW
 const cafeConfig = require('./config/cafeConfig');
 
 const app = express();
@@ -23,7 +24,7 @@ app.use(helmet());
 
 // ── CORS ──────────────────────────────────────────────────────────────────────
 const ALLOWED_ORIGINS = [
-  'https://finalldemo.netlify.app',
+  'https://velvet-vault.netlify.app',
   'http://localhost:5173',
   'http://localhost:4173',
   'http://localhost:3000',
@@ -84,6 +85,7 @@ app.use("/api/orders", orderRoutes);
 app.use("/api/analytics", analyticsRoutes);
 app.use("/api/shop-status", shopStatusRoutes);
 app.use("/api/push", pushRoutes);
+app.use("/api/coupons", couponRoutes);  // ← NEW
 
 app.get("/api/health", (req, res) => {
   res.json({

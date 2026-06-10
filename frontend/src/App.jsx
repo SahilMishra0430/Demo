@@ -8,8 +8,10 @@ import CustomerMenu from './pages/CustomerMenu';
 import AdminLogin from './pages/AdminLogin';
 import AdminDashboard from './pages/AdminDashboard';
 
+const { colors, admin, name } = cafeConfig;
+
 const ProtectedRoute = ({ children }) => {
-  const token = localStorage.getItem(cafeConfig.admin.tokenKey);
+  const token = localStorage.getItem(admin.tokenKey);
   if (!token) return <Navigate to="/admin/login" replace />;
   return children;
 };
@@ -33,12 +35,12 @@ const App = () => {
                 maxWidth: '360px',
               },
               success: {
-                iconTheme: { primary: '#007B8B', secondary: 'white' },
+                iconTheme: { primary: colors.adminAccent, secondary: 'white' },
                 style: { background: '#f0fdfa', color: '#134e4a', border: '1px solid #99f6e4' },
               },
               error: {
-                iconTheme: { primary: '#ef4444', secondary: 'white' },
-                style: { background: '#fef2f2', color: '#7f1d1d', border: '1px solid #fecaca' },
+                iconTheme: { primary: colors.danger, secondary: 'white' },
+                style: { background: colors.dangerBg, color: '#7f1d1d', border: '1px solid #fecaca' },
               },
             }}
           />
@@ -57,12 +59,20 @@ const App = () => {
             <Route
               path="*"
               element={
-                <div className="min-h-screen flex items-center justify-center font-montserrat text-center px-4"
-                  style={{ background: 'linear-gradient(135deg,#014F5A,#007B8B)' }}>
+                <div
+                  className="min-h-screen flex items-center justify-center font-montserrat text-center px-4"
+                  style={{ background: `linear-gradient(135deg, ${colors.adminAccentDark}, ${colors.adminAccent})` }}
+                >
                   <div>
                     <p className="text-white font-black text-7xl mb-4 opacity-30">404</p>
                     <p className="text-white font-bold text-xl mb-3">Page Not Found</p>
-                    <a href="/" className="text-sm font-bold underline underline-offset-4" style={{ color: 'rgba(255,255,255,0.7)' }}>← Back to Menu</a>
+                    <a
+                      href="/"
+                      className="text-sm font-bold underline underline-offset-4"
+                      style={{ color: 'rgba(255,255,255,0.7)' }}
+                    >
+                      ← Back to {name} Menu
+                    </a>
                   </div>
                 </div>
               }

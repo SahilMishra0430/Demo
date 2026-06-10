@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { cafeConfig } from '../config/cafeConfig';
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000/api',
@@ -6,22 +7,20 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
-// Attach JWT token to every request if present
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('demo_cafe_admin_token');
+    const token = localStorage.getItem(cafeConfig.admin.tokenKey);
     if (token) config.headers.Authorization = `Bearer ${token}`;
     return config;
   },
   (error) => Promise.reject(error)
 );
 
-// Handle 401 globally
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('demo_cafe_admin_token');
+      localStorage.removeItem(cafeConfig.admin.tokenKey);
       if (window.location.pathname.startsWith('/admin') && window.location.pathname !== '/admin/login') {
         window.location.href = '/admin/login';
       }

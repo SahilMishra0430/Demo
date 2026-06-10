@@ -240,7 +240,7 @@ const AdminDashboard = () => {
   const [clearAllConfirm, setClearAllConfirm] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [logoUploading, setLogoUploading] = useState(false);
-  const [logoPreview, setLogoPreview] = useState(localStorage.getItem('velvet_vault_logo_url') || '');
+  const [logoPreview, setLogoPreview] = useState(localStorage.getItem(cafeConfig.storage.logo) || '');
 
   const today = new Date().toISOString().split('T')[0];
 
@@ -349,11 +349,11 @@ const AdminDashboard = () => {
       setLogoUploading(true);
       try {
         await api.put('/auth/logo', { logoUrl: base64 });
-        localStorage.setItem('velvet_vault_logo_url', base64);
+        localStorage.setItem(cafeConfig.storage.logo, base64);
         toast.success('Logo updated! Refresh to see it in navbar.', { icon: '🖼️' });
       } catch (err) {
         toast.error(err.response?.data?.message || 'Failed to upload logo.');
-        setLogoPreview(localStorage.getItem('velvet_vault_logo_url') || '');
+        setLogoPreview(localStorage.getItem(cafeConfig.storage.logo) || '');
       } finally {
         setLogoUploading(false);
       }
@@ -365,7 +365,7 @@ const AdminDashboard = () => {
     setLogoUploading(true);
     try {
       await api.put('/auth/logo', { logoUrl: '' });
-      localStorage.removeItem('velvet_vault_logo_url');
+      localStorage.removeItem(cafeConfig.storage.logo);
       setLogoPreview('');
       toast.success('Logo removed.');
     } catch (_) { toast.error('Failed to remove logo.'); }
@@ -858,8 +858,8 @@ const AdminDashboard = () => {
       <header className="sticky top-0 z-40 shadow-lg" style={{ background: 'linear-gradient(135deg, var(--admin-dark) 0%, var(--admin) 100%)' }}>
         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            {localStorage.getItem('velvet_logo_url') ? (
-              <img src={localStorage.getItem('velvet_logo_url')} alt="logo" className="w-9 h-9 rounded-full object-cover border-2 border-white/30" />
+            {localStorage.getItem(cafeConfig.storage.logo) ? (
+              <img src={localStorage.getItem(cafeConfig.storage.logo)} alt="logo" className="w-9 h-9 rounded-full object-cover border-2 border-white/30" />
             ) : (
               <div className="w-9 h-9 rounded-full bg-white/15 border border-white/20 flex items-center justify-center">
                 <svg viewBox="0 0 24 24" className="w-4 h-4 fill-white"><path d="M2 21h18v-2H2v2zM20 8H4V5h16v3zm-2 7H6V9h12v6z" /></svg>

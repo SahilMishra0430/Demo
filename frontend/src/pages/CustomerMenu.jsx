@@ -21,6 +21,84 @@ const STATUS_CFG = {
   cancelled: { label: 'Cancelled',      icon: '❌', color: '#991b1b', bg: '#fee2e2' },
 };
 
+
+
+// ── Coupon Marquee Banner ─────────────────────────────────────────────────────
+const CouponMarqueeBanner = ({ coupons }) => {
+  if (!coupons || coupons.length === 0) return null;
+
+  // Build one message per coupon
+  const messages = coupons.map((c) => {
+    const discount = c.discountType === 'percent'
+      ? `${c.discountValue}% OFF${c.maxDiscount ? ` (max ₹${c.maxDiscount})` : ''}`
+      : `₹${c.discountValue} OFF`;
+    const min = c.minOrderAmount > 0 ? ` on orders above ₹${c.minOrderAmount}` : '';
+    return `🏷️ Use code ${c.code} — ${discount}${min}`;
+  });
+
+  // Repeat enough times so scroll never shows a gap (min 12 copies)
+  const copies = Math.ceil(12 / messages.length);
+  const track = Array(copies).fill(messages).flat();
+
+  // Speed: 60px per second. Calculate total width roughly as 220px per message.
+  const totalPx = track.length * 220;
+  const duration = totalPx / 60; // 100px/s = fast
+
+  return (
+    <div
+      className="relative overflow-hidden"
+      style={{
+        background: 'linear-gradient(90deg,#7c1200 0%,#b91c1c 45%,#991b1b 60%,#7c1200 100%)',
+        borderTop: '1px solid rgba(255,200,100,0.18)',
+        borderBottom: '1px solid rgba(255,200,100,0.18)',
+        height: '26px',
+      }}
+    >
+      {/* Scrolling track — translateX from 0 to -50% for seamless loop */}
+      <div
+        className="flex items-center h-full absolute left-0 top-0"
+        style={{
+          animation: `marquee-scroll ${duration}s linear infinite`,
+          willChange: 'transform',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {track.map((msg, i) => (
+          <span
+            key={i}
+            className="flex items-center flex-shrink-0"
+            style={{
+              color: '#fde68a',
+              fontFamily: 'Poppins, sans-serif',
+              fontSize: '10px',
+              fontWeight: 800,
+              letterSpacing: '0.07em',
+              textTransform: 'uppercase',
+              paddingLeft: '28px',
+            }}
+          >
+            {msg}
+            <span style={{ color: 'rgba(253,230,138,0.45)', marginLeft: '28px', fontSize: '8px' }}>◆</span>
+          </span>
+        ))}
+      </div>
+
+      {/* Fade edges */}
+      <div className="absolute left-0 top-0 h-full w-8 pointer-events-none z-10"
+        style={{ background: 'linear-gradient(90deg,#7c1200,transparent)' }} />
+      <div className="absolute right-0 top-0 h-full w-8 pointer-events-none z-10"
+        style={{ background: 'linear-gradient(270deg,#7c1200,transparent)' }} />
+
+      <style>{`
+        @keyframes marquee-scroll {
+          0%   { transform: translateX(0); }
+          100% { transform: translateX(-50%); }
+        }
+      `}</style>
+    </div>
+  );
+};
+
 // ── My Orders slide-in panel ──────────────────────────────────────────────────
 const MyOrdersPanel = ({ orders, onClose, onClear }) => {
   const [liveData, setLiveData]   = useState({});
@@ -206,6 +284,7 @@ const CustomerMenu = () => {
 
   const [menuItems, setMenuItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [activeCoupons, setActiveCoupons] = useState([]);
   const [error, setError] = useState('');
   const [activeSuperCat, setActiveSuperCat] = useState('All Items');
   const [activeSubCat, setActiveSubCat] = useState('All');
@@ -224,6 +303,13 @@ const CustomerMenu = () => {
   }, []);
 
   useEffect(() => { fetchMenu(); }, []);
+
+  // ── Fetch active coupons for banner ────────────────────────────────────────
+  useEffect(() => {
+    api.get('/coupons/public')
+      .then((res) => setActiveCoupons(res.data))
+      .catch(() => {});
+  }, []);
 
   const fetchMenu = async () => {
     try {
@@ -280,7 +366,7 @@ const CustomerMenu = () => {
   const hasItems = Object.keys(groups).length > 0;
 
   return (
-    <div className="min-h-screen font-poppins" style={{ background: '#e2e1e0' }}>
+    <div className="min-h-screen font-poppins" style={{ background: '#ffffff' }}>
 
       {/* ✅ ADD THIS BLOCK — shop closed screen */}
       {shopClosed && (
@@ -420,6 +506,9 @@ const CustomerMenu = () => {
               </div>
             </div>
           )}
+
+          {/* Coupon marquee banner */}
+          {!searchQuery && activeCoupons.length > 0 && <CouponMarqueeBanner coupons={activeCoupons} />}
 
           {/* Main content */}
           <main className="max-w-lg mx-auto px-4 pb-28">

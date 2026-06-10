@@ -23,7 +23,13 @@ const orderSchema = new mongoose.Schema(
     },
 
     items:       [orderItemSchema],
-    totalAmount: { type: Number, required: true, min: 0 },
+
+    // ── Coupon fields ────────────────────────────────────────────────────────
+    couponCode:     { type: String, default: '' },      // e.g. "DIESEL10"
+    discountAmount: { type: Number, default: 0, min: 0 }, // ₹ amount deducted
+    originalAmount: { type: Number, default: 0, min: 0 }, // cart total before discount
+
+    totalAmount: { type: Number, required: true, min: 0 }, // final amount after discount
 
     status: {
       type: String,
