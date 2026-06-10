@@ -115,12 +115,12 @@ export const cafeConfig = {
   colors: {
 
     // ── Customer UI ────────────────────────────────────────────────────────
-    primary: '#3a1a1e',   // navbar bg, cart header, category bar
-    primaryDark: '#982829',   // darker variant used in gradients/hover
-    primaryDeep: '#3a1a1e',   // add-to-cart button, quantity stepper bg
+    primary: '#FA8602',   // navbar bg, cart header, category bar
+    primaryDark: '#64690C',   // darker variant used in gradients/hover
+    primaryDeep: '#847c78',   // add-to-cart button, quantity stepper bg
 
     // Gold accent
-    accent: '#d6993c',   // icons, borders, order badge
+    accent: '#e8e8e8',   // icons, borders, order badge
     accentLight: '#e8b86d',
     accentDark: '#b37d2e',
 
@@ -134,25 +134,25 @@ export const cafeConfig = {
     // Sup-category filter pills
     pillsupActive: '#ffffff',   // active pill bg
     pillsupActiveText: '#1a1a1a',
-    pillsup: '#ffffff00',   // active pill bg
-    pillsupText: '#ffffffc0',
+    pillsup: '#00000021',   // active pill bg
+    pillsupText: '#ffffff',
 
     // Order Model Colours
-    ordermodelbg: '#3a1a1e',
-    ordermodelbgtext: '#ffffff',
+    ordermodelbg: '#ffffff',
+    ordermodelbgtext: '#000000',
     ordermodelbgtextonsummery: '#4a262b',
     ordermodelbgmesseges: '#dcf309',
-    canclebuttonbg: '#ffffff',
-    canclebuttonborder: '#000000',
+    // canclebuttonbg: '#ffffff',
+    // canclebuttonborder: '#000000',
     typeselectorbgactive: '#940901',
-    typeselectorbg: '#0000004d',
+    typeselectorbg: '#fa8602bd',
     typeselectorborderactive: '#940901',
-    typeselectorborderinactive: '#0000008f',
+    typeselectorborderinactive: '#000000de',
     typeselectortextactive: '#ffffff',
     typeselectortextinactive: '#ffffff',
     typeselectorshadowactive: '#93030273',
-    // cancelbuttonbg:'#0000004d',
-    // cancelbuttonborder: '#ffffff',
+    cancelbuttonbg:'#fa8602bd',
+    cancelbuttonborder: '#ffffff',
     confirmbuttonbg: '#31603d',
 
 
@@ -166,7 +166,7 @@ export const cafeConfig = {
 
     // Backgrounds
     pageBg: '#ffffff',   // main page bg
-    cardBg: '#f8faee',   // menu cards, cart items
+    cardBg: '#ffffff',   // menu cards, cart items
     imageBg: '#f4eaa8',   // image placeholder / loading bg
     cream: '#f4eaa8',
     ivory: '#fdf8e8',   // global body bg (index.css)

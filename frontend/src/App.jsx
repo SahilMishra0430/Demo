@@ -3,12 +3,13 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { CartProvider } from './context/CartContext';
 import { ThemeProvider } from './context/ThemeContext';
+import { cafeConfig } from './config/cafeConfig';
 import CustomerMenu from './pages/CustomerMenu';
 import AdminLogin from './pages/AdminLogin';
 import AdminDashboard from './pages/AdminDashboard';
 
 const ProtectedRoute = ({ children }) => {
-  const token = localStorage.getItem('diesel_admin_token');
+  const token = localStorage.getItem(cafeConfig.admin.tokenKey);
   if (!token) return <Navigate to="/admin/login" replace />;
   return children;
 };

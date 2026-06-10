@@ -477,12 +477,12 @@ const OrderModal = ({ isOpen, onClose, tableFromQR }) => {
               <div className="flex items-center gap-3 mb-4">
                 <button onClick={() => setStep('form')}
                   className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
-                  style={{ background: 'rgba(255,255,255,0.2)', color: 'white' }}>←</button>
+                  style={{ background: 'rgba(255,255,255,0.2)', color: 'var(--ordermodelbgtext)' }}>←</button>
                 <div>
                   <h2 className="font-black text-lg" style={{ color: 'var(--ordermodelbgtext)' }}>
                     {isAutoPayEnabled ? 'Complete Payment' : getPaymentTitle(paymentMethod)}
                   </h2>
-                  <p className="text-white/70 text-xs">
+                  <p className="text-xs" style={{ color: 'var(--ordermodelbgtext)' }}>
                     {isAutoPayEnabled ? 'Secure payment powered by Razorpay' : 'Complete payment to place order'}
                   </p>
                 </div>
@@ -539,7 +539,7 @@ const OrderModal = ({ isOpen, onClose, tableFromQR }) => {
                         <button key={m.id} type="button" onClick={() => setPaymentMethod(m.id)}
                           className="flex flex-col items-center justify-center py-3 px-2 rounded-xl text-xs font-bold border-2 transition-all active:scale-[0.97] text-center"
                           style={{
-                            background: paymentMethod === m.id ? 'var(--typeselectorbgactive)' : 'rgba(255,255,255,0.12)',
+                            background: paymentMethod === m.id ? 'var(--typeselectorbgactive)' : 'var(--typeselectorbg)',
                             borderColor: paymentMethod === m.id ? 'var(--typeselectorborderactive)' : 'rgba(255,255,255,0.25)',
                             color: 'white',
                             boxShadow: paymentMethod === m.id ? '0 4px 12px var(--typeselectorbgactive)' : 'none',
@@ -586,7 +586,7 @@ const OrderModal = ({ isOpen, onClose, tableFromQR }) => {
                       <p className="text-white font-bold mb-1">
                         {paymentMethod === 'debit-card' ? '💳 Pay via Debit Card' : '💳 Pay via Credit Card'}
                       </p>
-                      <p className="text-white/60 text-xs leading-relaxed">
+                      <p className="text-xs leading-relaxed" style={{ color: 'var(--ordermodelbgmesseges)' }}>
                         Complete your payment and note the transaction reference number shown after payment.
                       </p>
                     </div>
@@ -602,7 +602,7 @@ const OrderModal = ({ isOpen, onClose, tableFromQR }) => {
 
                   <form onSubmit={handlePaymentSubmit} className="space-y-3 pb-4">
                     <div>
-                      <label className="block font-bold text-sm mb-1 text-gray-100">{getUtrLabel(paymentMethod)}</label>
+                      <label className="block font-bold text-sm mb-1" style={{ color: 'var(--ordermodelbgtext)' }}>{getUtrLabel(paymentMethod)}</label>
                       <input type="text" value={utr}
                         onChange={(e) => setUtr(e.target.value.replace(/\s/g, ''))}
                         placeholder={getUtrPlaceholder(paymentMethod)} className="input-base"

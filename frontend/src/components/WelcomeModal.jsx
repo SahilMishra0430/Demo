@@ -30,7 +30,7 @@ const WelcomeModal = ({ tableNo }) => {
       <div
         className="pop-in w-full max-w-sm rounded-3xl overflow-hidden shadow-gold-lg"
         onClick={(e) => e.stopPropagation()}
-        style={{ background: 'linear-gradient(160deg, #fdf8e8 0%, #f4eaa8 60%, #e8d87a 100%)' }}
+        style={{ background: 'white' }}
       >
         {/* Top strip — uses brand gradient */}
         <div
@@ -78,7 +78,7 @@ const WelcomeModal = ({ tableNo }) => {
           <button
             onClick={handleClose}
             className="btn-gold w-full py-3.5 rounded-2xl text-sm tracking-widest uppercase"
-            style={{ fontFamily: 'Poppins, sans-serif', letterSpacing: '0.15em', background: 'var(--primary-deep)' }}
+            style={{ fontFamily: 'Poppins, sans-serif', letterSpacing: '0.15em', background: 'var(--primary)' }}
           >
             ✨ Start Ordering
           </button>

@@ -1,3 +1,4 @@
+console.log('API URL:', import.meta.env.VITE_API_URL);
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { cafeConfig } from '../config/cafeConfig';
@@ -26,7 +27,7 @@ const AdminLogin = () => {
     try {
       const res = await api.post('/auth/login', { email: email.trim(), password });
       localStorage.setItem(admin.tokenKey, res.data.token);
-      navigate('/admin/dashboard', { replace: true });
+      window.location.href = '/admin/dashboard'; // hard reload ensures ProtectedRoute reads fresh token
     } catch (err) {
       setError(err.response?.data?.message || 'Login failed. Check your credentials.');
     } finally {

@@ -280,7 +280,7 @@ const CustomerMenu = () => {
   const hasItems = Object.keys(groups).length > 0;
 
   return (
-    <div className="min-h-screen font-poppins" style={{ background: '#ffffff' }}>
+    <div className="min-h-screen font-poppins" style={{ background: '#e2e1e0' }}>
 
       {/* ✅ ADD THIS BLOCK — shop closed screen */}
       {shopClosed && (
