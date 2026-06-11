@@ -72,7 +72,7 @@ const Navbar = ({ onCartClick, onOrdersClick, ordersCount = 0 }) => {
           <button
             onClick={onOrdersClick}
             className="relative flex items-center gap-1.5 px-3 py-2 rounded-full border transition-all duration-200 active:scale-95"
-            style={{ background: 'rgba(214,153,60,0.15)', borderColor: 'rgba(214,152,60,0.84)' }}
+            style={{ background: 'var(--ordersbg)', borderColor: 'var(--ordersborder)' }}
             onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(214,153,60,0.28)'; }}
             onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(214,153,60,0.15)'; }}
             aria-label="My Orders"
@@ -97,7 +97,7 @@ const Navbar = ({ onCartClick, onOrdersClick, ordersCount = 0 }) => {
           <button
             onClick={onCartClick}
             className="relative flex items-center gap-2 px-3 py-2 rounded-full border transition-all duration-200 active:scale-95"
-            style={{ background: 'rgba(214,153,60,0.15)', borderColor: 'rgba(214,152,60,0.84)' }}
+            style={{ background: 'var(--ordersbg)', borderColor: 'var(--ordersborder)' }}
             onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(214,153,60,0.28)'; }}
             onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(214,153,60,0.15)'; }}
             aria-label="Open cart"
@@ -107,7 +107,7 @@ const Navbar = ({ onCartClick, onOrdersClick, ordersCount = 0 }) => {
             </svg>
             {totalItems > 0 && (
               <>
-                <span className="text-white text-xs font-bold hidden sm:inline" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                <span className="text-xs font-bold hidden sm:inline" style={{ fontFamily: 'Poppins, sans-serif' }} color="var(--accent)">
                   ₹{totalAmount}
                 </span>
                 <span className="cart-badge">{totalItems > 99 ? '99+' : totalItems}</span>

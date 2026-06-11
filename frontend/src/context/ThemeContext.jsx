@@ -47,6 +47,8 @@ const injectCSSVariables = () => {
   root.style.setProperty('--pillsupActive', c.pillsupActive);
   root.style.setProperty('--pillsupActiveText', c.pillsupActiveText);
   root.style.setProperty('--subbg', c.subbg);
+  root.style.setProperty('--ordersbg', c.ordersbg);
+  root.style.setProperty('--ordersborder', c.ordersborder);
 
 
   // OrderModal & Cart

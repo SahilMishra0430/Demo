@@ -59,10 +59,10 @@ export const cafeConfig = {
     upiName: 'Sahil Anil Mishra',
   },
 
-  
-  
+
+
   // ── ③ ADMIN ───────────────────────────────────────────────────────────────
-  
+
   admin: {
     email: 'admin@democafe.com',   // used in createAdmin.js
     emailPlaceholder: 'admin@democafe.com',    // shown in login form
@@ -120,9 +120,12 @@ export const cafeConfig = {
     primaryDeep: '#847c78',   // add-to-cart button, quantity stepper bg
 
     // Gold accent
-    accent: '#e8e8e8',   // icons, borders, order badge
+    accent: '#231313b0',   // icons, borders, order badge
     accentLight: '#e8b86d',
     accentDark: '#b37d2e',
+    ordersbg: '#6b0d0d9f',   // orders page card bg
+    ordersborder: '#251e1399',   // orders page card border
+
 
     // Sub-category filter pills
     pillActive: '#4e2c21',   // active pill bg
@@ -151,7 +154,7 @@ export const cafeConfig = {
     typeselectortextactive: '#ffffff',
     typeselectortextinactive: '#ffffff',
     typeselectorshadowactive: '#93030273',
-    cancelbuttonbg:'#fa8602bd',
+    cancelbuttonbg: '#fa8602bd',
     cancelbuttonborder: '#ffffff',
     confirmbuttonbg: '#31603d',
 
@@ -177,9 +180,9 @@ export const cafeConfig = {
 
     // Header / Top Bar
     // background: linear-gradient(135deg, adminDark → adminPrimary)
-    adminPrimary: '#325862',   // header gradient end, filter pill active, Add Item button
-    adminDark: '#243f47',   // header gradient start, login page gradient
-    adminDeep: '#0f1a1e',   // login page background (very dark teal)
+    adminPrimary: '#FA8602',   // header gradient end, filter pill active, Add Item button
+    adminDark: '#FA8602',   // header gradient start, login page gradient
+    adminDeep: '#847c78',   // login page background (very dark teal)
 
     // Tab Navigation bar
     adminTabActive: '#007B8B',   // active tab text + underline colour
@@ -231,7 +234,7 @@ export const cafeConfig = {
     adminBorderDark: '#374151',   // dark mode card border
     adminMuted: '#6B7280',   // light mode muted text
     adminMutedDark: '#D1D5DB',   // dark mode muted text
-    adminText: '#1F2937',   // light mode primary text
+    adminText: '#000000',   // light mode primary text
     adminTextDark: '#F9FAFB',   // dark mode primary text
     adminInput: '#FFFFFF',   // light mode input bg
     adminInputDark: '#374151',   // dark mode input bg

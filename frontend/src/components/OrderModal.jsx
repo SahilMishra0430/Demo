@@ -677,7 +677,9 @@ const OrderModal = ({ isOpen, onClose, tableFromQR }) => {
               </div>
 
               <h2 className="font-black text-2xl mb-2" style={{ color: status.color }}>{status.label}</h2>
-              <p className="text-gray-200 text-sm leading-relaxed mb-4">{status.desc}</p>
+              <p className="text-sm leading-relaxed mb-4" style={{ color: 'var(--ordermodelbgmesseges)' }}>
+                {status.desc}
+              </p>
 
               {/* Order type badge */}
               <div className="mb-3">
@@ -785,7 +787,7 @@ const OrderModal = ({ isOpen, onClose, tableFromQR }) => {
               </div>
 
               {!['ready', 'completed'].includes(orderStatus) && (
-                <p className="text-gray-100 text-xs mb-4 flex items-center justify-center gap-2">
+                <p className=" text-xs mb-4 flex items-center justify-center gap-2" style={{ color: 'var(--ordermodelbgmesseges)' }}>
                   <span className="w-2 h-2 rounded-full bg-green-400 inline-block"
                     style={{ animation: 'pulse 1.4s ease-in-out infinite' }} />
                   Updating every 3 seconds
